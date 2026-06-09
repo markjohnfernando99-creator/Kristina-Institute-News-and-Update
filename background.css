@@ -1,0 +1,27 @@
+/* Shared background styles for both user view and admin view */
+
+:root{
+  /* Use your background image. If filename differs, update this value. */
+  --bg-image-url: url("kristina-updates/school.jpg");
+}
+
+
+/* Load Google Fonts in HTML when needed; keep CSS only here */
+
+body{
+  /* Fallback background if image fails */
+  background: linear-gradient(180deg,#060a13, var(--bg));
+}
+
+/* Optional: apply background image only when a specific class is present */
+body.has-bg-image{
+  background-image:
+    radial-gradient(900px circle at 20% 10%, rgba(79,140,255,.22), rgba(0,0,0,0) 45%),
+    radial-gradient(800px circle at 80% 30%, rgba(43,212,197,.18), rgba(0,0,0,0) 48%),
+    var(--bg-image-url);
+  background-size: cover, cover, cover;
+  background-position: center, center, center;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+}
+
