@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Kristina Institute — User View</title>
+  <link rel="stylesheet" href="assets/style.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Lato:wght@400;700&display=swap" rel="stylesheet" />
+
+</head>
+<body>
+
+  <header class="site-header">
+    <div class="container header-inner">
+        <div class="brand">
+<div class="brand-mark" aria-hidden="true">
+          <img class="brand-logo" src="assets/KIHCA LOGO MALIWANAG.png" alt="Kristina Institute logo" />
+        </div>
+        <div>
+          <div class="brand-title">Kristina Institute</div>
+          <div class="brand-subtitle">Hospitality &amp; Culinary Arts</div>
+        </div>
+      </div>
+
+      <nav class="nav">
+        <a href="index.html#news" class="nav-link">News</a>
+        <a href="index.html#updates" class="nav-link">Updates</a>
+        <a href="index.html#advertisement" class="nav-link">Advertisement</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="container hero-inner">
+        <div>
+          <h1>WELCOME TO KRISTINA INSTITUTE News & Update Website</h1>
+          <p>
+            A simple, ready-to-use website to publish <strong>News</strong>, <strong>Updates</strong>, and <strong>Advertisements</strong>
+            with photos and attachments.
+          </p>
+          <div class="hero-actions">
+            <a class="btn" href="index.html#news">News</a>
+            <a class="btn" href="index.html#updates" style="margin-left:10px;">Updates</a>
+            <a class="btn" href="index.html#advertisement" style="margin-left:10px;">Advertisement</a>
+          </div>
+        </div>
+        <div class="hero-card" role="note">
+          <h3>What you can see</h3>
+          <ul>
+            <li>News list</li>
+            <li>Updates list</li>
+            <li>Advertisement interactive programs</li>
+          </ul>
+          <p class="muted">No login required.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="advertisement" class="section">
+      <div class="container">
+        <div class="section-head">
+          <h2>Advertisement</h2>
+          <a href="index.html#advertisement" class="section-more" title="Open full page">Open full page</a>
+        </div>
+        <div class="muted" style="margin-top:12px;">Use the main index page to view full interactive ads.</div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container footer-inner">
+      <div>
+        <div class="footer-title">Kristina Institute</div>
+        <div class="muted">Hospitality &amp; Culinary Arts</div>
+      </div>
+      <div class="footer-right">
+        <div class="muted">© <span id="year"></span> All rights reserved.</div>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    document.getElementById('year').textContent = new Date().getFullYear();
+  </script>
+
+</body>
+</html>
+

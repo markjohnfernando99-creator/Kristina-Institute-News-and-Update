@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Kristina Institute — TESDA Programs</title>
+  <link rel="stylesheet" href="assets/style.css" />
+  <style>
+    .page{padding:26px 0 40px;}
+    .section-head{display:flex; justify-content:space-between; align-items:flex-end; gap:12px; flex-wrap:wrap; margin-bottom:14px;}
+
+    .grid-tesda{
+      display:grid;
+      grid-template-columns:repeat(3, 1fr);
+      gap:14px;
+      align-items:stretch;
+    }
+
+    @media(max-width:980px){.grid-tesda{grid-template-columns:repeat(2, 1fr);}}
+    @media(max-width:680px){.grid-tesda{grid-template-columns:1fr;}}
+
+    /* Reuse existing card styles but improve hover animation without changing size/spacing */
+    .tesda-card{
+      background:rgba(255,255,255,.05);
+      border:1px solid var(--border);
+      border-radius:16px;
+      overflow:hidden;
+      display:flex;
+      flex-direction:column;
+      min-height:240px;
+      transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease;
+      box-shadow: 0 0 0 rgba(0,0,0,0);
+    }
+    .tesda-card:hover{
+      transform: translateY(-3px);
+      border-color: rgba(79,140,255,.45);
+      box-shadow: 0 12px 30px rgba(0,0,0,.35);
+    }
+
+    .tesda-card .card-media{height:150px;}
+    .tesda-card .card-body{padding:14px 14px 16px;}
+    /* Clamp preview text to 4 lines */
+    .tesda-card .card-content{
+      display:-webkit-box;
+      -webkit-box-orient:vertical;
+      overflow:hidden;
+      -webkit-line-clamp:4;
+    }
+
+    .back-link{color:var(--muted); text-decoration:none; font-weight:800; border:1px solid var(--border); padding:7px 10px; border-radius:12px;}
+    .back-link:hover{color:var(--text)}
+  </style>
+</head>
+<body class="has-bg-image">
+  <header class="site-header">
+    <div class="container header-inner">
+        <div class="brand">
+        <div class="brand-mark" aria-hidden="true">
+<img class="brand-logo" src="assets/KIHCA LOGO MALIWANAG.png" alt="" />
+        </div>
+        <div>
+          <div class="brand-title">Kristina Institute</div>
+          <div class="brand-subtitle">Hospitality &amp; Culinary Arts</div>
+        </div>
+      </div>
+      <nav class="nav">
+        <a href="index.html" class="nav-link">Home</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="page">
+    <div class="container">
+      <div class="section-head">
+        <div>
+          <h1 style="margin:0; font-size:22px;">TESDA Programs</h1>
+          <div class="muted" style="margin-top:6px;">Select a qualification to view details.</div>
+        </div>
+        <div>
+          <a class="back-link" href="index.html#tesda">Back</a>
+        </div>
+      </div>
+
+      <div style="margin-top:10px;">
+        <div class="grid-tesda" id="tesdaCards"></div>
+      </div>
+
+
+    </div>
+  </main>
+
+  <script>
+    const qs = new URLSearchParams(location.search);
+    // category can be assessment or training; if missing show both
+    const category = qs.get('cat') || '';
+
+    function escapeHtml(s){
+      return (s ?? '').toString()
+        .replaceAll('&','&amp;')
+        .replaceAll('<','<')
+        .replaceAll('>','>')
+        .replaceAll('"','"')
+        .replaceAll("'",'&#039;');
+    }
+
+    async function fetchJSON(url){
+      const res = await fetch(url);
+      if(!res.ok) throw new Error(await res.text());
+      return res.json();
+    }
+
+    function kindLabelFromType(type){
+      if(type === 'tesda_assessment') return 'Assessment & Certification';
+      if(type === 'tesda_training') return 'Community-based Training';
+      return 'TESDA';
+    }
+
+    function renderCard(item){
+      const title = escapeHtml(item.title);
+      const content = (item.content ?? '');
+
+      // content is JSON string with fields (description etc.)
+      let meta = {};
+      try{ meta = JSON.parse(content); }catch(e){}
+      const description = meta.program_description || meta.description || '';
+      const duration = meta.training_duration || '';
+
+      const preview = (description || 'View program details').toString();
+      const date = '';
+
+      // No images required for these qualifications; keep media area consistent
+      const imgHtml = '';
+
+      return `
+        <article class="tesda-card">
+          <div class="card-body" style="padding-top:16px;">
+            <div class="badges" style="margin-bottom:6px;">
+              <span class="badge badge-primary">${escapeHtml(kindLabelFromType(item.type || ''))}</span>
+            </div>
+            <h3 class="card-title" style="font-size:16px;">${title}</h3>
+            <div class="card-content" style="margin-top:10px;">
+              ${escapeHtml(preview)}
+            </div>
+            <div class="card-actions" style="padding:12px 0 0; border-top:0; margin-top:auto;">
+              <a class="small-link" href="tesda-details.html?id=${encodeURIComponent(item.id)}&type=${encodeURIComponent(item.type)}">View</a>
+              <span class="small">${duration ? escapeHtml(duration) : ''}</span>
+            </div>
+          </div>
+        </article>
+      `;
+    }
+
+    (async()=>{
+      const target = document.getElementById('tesdaCards');
+      try{
+        target.innerHTML = '<div class="muted">Loading qualifications…</div>';
+
+        const types = [];
+        if(category === 'assessment') types.push('tesda_assessment');
+        else if(category === 'training') types.push('tesda_training');
+        else types.push('tesda_assessment','tesda_training');
+
+        const all = [];
+        for(const t of types){
+          const data = await fetchJSON(`api/list.php?type=${encodeURIComponent(t)}&limit=50`);
+          (data.items || []).forEach(i => all.push(i));
+        }
+
+        // Keep stable ordering by type then title.
+        all.sort((a,b)=>{
+          if((a.type||'') !== (b.type||'')) return (a.type||'').localeCompare(b.type||'');
+          return (a.title||'').localeCompare(b.title||'');
+        });
+
+        target.innerHTML = all.map(renderCard).join('');
+
+      }catch(e){
+        console.error(e);
+        target.innerHTML = '<div class="muted">Failed to load TESDA qualifications.</div>';
+      }
+    })();
+  </script>
+</body>
+</html>
+

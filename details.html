@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Kristina Institute — Details</title>
+  <link rel="stylesheet" href="assets/style.css" />
+  <style>
+    .details{padding:26px 0;}
+    .details-wrap{max-width:980px;}
+    .details-card{background:rgba(255,255,255,.03); border:1px solid var(--border); border-radius:18px; overflow:hidden; box-shadow:var(--shadow)}
+    .details-media{background:#0d1528; max-height:360px; overflow:hidden;}
+    .details-media img{width:100%; height:auto; display:block;}
+    .details-body{padding:18px 18px 20px;}
+    .details-title{margin:0; font-size:24px;}
+    .details-meta{margin-top:6px; color:var(--muted); font-size:13px; display:flex; gap:12px; flex-wrap:wrap;}
+    .details-content{margin-top:14px; color:var(--text); line-height:1.65; white-space:pre-wrap;}
+    .details-actions{margin-top:18px; display:flex; gap:12px; flex-wrap:wrap;}
+    .details .btn-link{display:inline-flex; align-items:center; justify-content:center; padding:11px 14px; border-radius:12px; color:#0b1220; text-decoration:none; font-weight:750; background:linear-gradient(135deg,var(--primary),var(--primary2));}
+    .details .btn-out{background:transparent; color:var(--muted); border:1px solid var(--border);}
+
+    .details-skeleton{
+      padding:18px;
+    }
+    .details-skeleton .skel-row{margin:10px 0;}
+  </style>
+
+</head>
+<body>
+  <header class="site-header">
+    <div class="container header-inner">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">
+          <img class="brand-logo" src="assets/KIHCA LOGO MALIWANAG.jpg" alt="Kristina Institute logo" />
+        </div>
+        <div>
+          <div class="brand-title">Kristina Institute</div>
+          <div class="brand-subtitle">Hospitality &amp; Culinary Arts</div>
+        </div>
+      </div>
+      <nav class="nav">
+        <a href="index.html" class="nav-link">Home</a>
+
+      </nav>
+    </div>
+  </header>
+
+  <main class="details">
+    <div class="container details-wrap">
+      <div id="detailsCard" class="details-card">
+        <div class="details-body">
+          <div class="muted">Loading...</div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    const qs = new URLSearchParams(location.search);
+    const type = qs.get('type') || 'news';
+    const id = qs.get('id');
+
+    function escapeHtml(s){
+      return (s ?? '').toString()
+        .replaceAll('&','&amp;')
+        .replaceAll('<','<')
+        .replaceAll('>','>')
+        .replaceAll('"','"')
+        .replaceAll("'",'&#039;');
+    }
+
+    async function fetchJSON(url){
+      const res = await fetch(url);
+      if(!res.ok) throw new Error(await res.text());
+      return res.json();
+    }
+
+    function renderSkeleton(){
+      const card = document.getElementById('detailsCard');
+      if(!card) return;
+      card.innerHTML = `
+        <div class="details-body details-skeleton">
+          <div class="muted" style="margin-bottom:14px;">Loading details...</div>
+          <div class="skel-row" style="height:18px; width:62%; border-radius:14px;"></div>
+          <div class="skel-row" style="width:40%"></div>
+          <div class="skel-row" style="width:85%"></div>
+          <div class="skel-row" style="width:65%"></div>
+        </div>
+      `;
+    }
+
+    (async ()=>{
+      try{
+        renderSkeleton();
+
+        if(!id){
+          document.getElementById('detailsCard').innerHTML = `<div class="details-body"><div class="muted">Missing id.</div></div>`;
+          return;
+        }
+        const data = await fetchJSON(`api/get.php?type=${encodeURIComponent(type)}&id=${encodeURIComponent(id)}`);
+        if(!data.item){
+          document.getElementById('detailsCard').innerHTML = `<div class="details-body"><div class="muted">Item not found.</div></div>`;
+          return;
+        }
+
+        const item = data.item;
+        const img = item.image_path ? `assets/uploads/${encodeURIComponent(item.image_path)}` : '';
+        const title = escapeHtml(item.title);
+
+
+
+
+        const date = item.created_at ? new Date(item.created_at).toLocaleString() : '';
+
+        const content = escapeHtml(item.content);
+
+        const attachmentHtml = item.attachment_path
+          ? `<a class="btn-link" href="assets/uploads/${encodeURIComponent(item.attachment_path)}" target="_blank" rel="noreferrer">Download Attachment</a>`
+          : '';
+
+        const videoHtml = item.video_path
+          ? `<div class="details-media" style="background:transparent;">
+               <video controls playsinline style="width:100%; max-height:360px; object-fit:contain; display:block;">
+                 <source src="assets/uploads/${encodeURIComponent(item.video_path)}" />
+               </video>
+             </div>`
+          : '';
+
+
+        const kindLabel = type === 'updates' ? 'Update' : (type === 'advertisement' ? 'Advertisement' : 'News');
+
+
+        document.getElementById('detailsCard').innerHTML = `
+          ${videoHtml ? `${videoHtml}` : ''}
+          ${!videoHtml && img ? `<div class="details-media"><img src="${img}" alt="${title}" onerror="this.parentElement.style.display='none';" /></div>` : ''}
+
+
+          <div class="details-body">
+            <h1 class="details-title">${title}</h1>
+            <div class="details-meta">
+              <span>${escapeHtml(kindLabel)}</span>
+              ${date ? `<span>${escapeHtml(date)}</span>` : ''}
+              ${item.author_name ? `<span>By ${escapeHtml(item.author_name)}</span>` : ''}
+            </div>
+            ${content ? `<div class="details-content">${content}</div>` : ''}
+            <div class="details-actions">
+              ${attachmentHtml}
+              ${videoHtml ? `<a class="btn-link" href="#" onclick="return false" style="cursor:default;">Video included</a>` : ''}
+              <a class="btn-link btn-out" href="index.html">Back to Home</a>
+
+            </div>
+          </div>
+        `;
+      }catch(e){
+        console.error(e);
+        document.getElementById('detailsCard').innerHTML = `<div class="details-body"><div class="muted">Failed to load details.</div></div>`;
+      }
+    })();
+  </script>
+</body>
+</html>
+

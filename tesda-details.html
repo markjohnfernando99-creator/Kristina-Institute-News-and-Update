@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Kristina Institute — TESDA Qualification Details</title>
+  <link rel="stylesheet" href="assets/style.css" />
+  <style>
+    .page{padding:26px 0 40px;}
+    .wrap{max-width:980px; margin:0 auto; padding:0 16px;}
+    .details-card{
+      background:rgba(255,255,255,.03);
+      border:1px solid var(--border);
+      border-radius:18px;
+      overflow:hidden;
+      box-shadow:var(--shadow);
+    }
+    .details-body{padding:18px;}
+    .details-title{margin:0; font-size:24px;}
+    .details-meta{margin-top:6px; color:var(--muted); font-size:13px; display:flex; gap:12px; flex-wrap:wrap;}
+    .grid3{display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-top:16px;}
+    .kv{background:rgba(255,255,255,.02); border:1px solid var(--border); border-radius:14px; padding:12px;}
+    .kv .k{color:var(--muted); font-size:12.5px; font-weight:800;}
+    .kv .v{margin-top:8px; color:var(--text); font-size:14px; line-height:1.6; white-space:pre-wrap;}
+    @media(max-width:760px){.grid3{grid-template-columns:1fr;}}
+
+    .section-block{margin-top:16px;}
+    .section-block h3{margin:0 0 10px; font-size:16px;}
+    .box{background:rgba(255,255,255,.02); border:1px solid var(--border); border-radius:14px; padding:12px;}
+    .muted{color:var(--muted)}
+
+    .actions{margin-top:18px; display:flex; gap:12px; flex-wrap:wrap;}
+  </style>
+</head>
+<body class="has-bg-image">
+  <header class="site-header">
+    <div class="container header-inner">
+        <div class="brand">
+        <div class="brand-mark" aria-hidden="true">
+<img class="brand-logo" src="assets/KIHCA LOGO MALIWANAG.png" alt="" />
+        </div>
+        <div>
+          <div class="brand-title">Kristina Institute</div>
+          <div class="brand-subtitle">Hospitality &amp; Culinary Arts</div>
+        </div>
+      </div>
+      <nav class="nav">
+        <a href="index.html" class="nav-link">Home</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="page">
+    <div class="wrap">
+      <div id="detailsCard" class="details-card">
+        <div class="details-body">
+          <div class="muted">Loading…</div>
+        </div>
+      </div>
+
+      <div class="actions">
+        <a class="btn-secondary btn-out" href="tesda.html">Back to TESDA Programs</a>
+        <a class="btn-link" style="display:inline-flex; align-items:center; justify-content:center; padding:11px 14px; border-radius:12px; background:linear-gradient(135deg,var(--primary),var(--primary2)); color:#0b1220; text-decoration:none; font-weight:850;" href="index.html#tesda">Home</a>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    const qs = new URLSearchParams(location.search);
+    const id = qs.get('id');
+    const type = qs.get('type') || 'tesda_assessment';
+
+    function escapeHtml(s){
+      return (s ?? '').toString()
+        .replaceAll('&','&amp;')
+        .replaceAll('<','<')
+        .replaceAll('>','>')
+        .replaceAll('"','"')
+        .replaceAll("'",'&#039;');
+    }
+
+    async function fetchJSON(url){
+      const res = await fetch(url);
+      if(!res.ok) throw new Error(await res.text());
+      return res.json();
+    }
+
+    function kindLabelFromType(t){
+      if(t === 'tesda_assessment') return 'ASSESSMENT & CERTIFICATION QUALIFICATIONS';
+      if(t === 'tesda_training') return 'COMMUNITY-BASED TRAINING QUALIFICATIONS';
+      return 'TESDA';
+    }
+
+    function kv(label, value){
+      return `
+        <div class="kv">
+          <div class="k">${escapeHtml(label)}</div>
+          <div class="v">${escapeHtml(value)}</div>
+        </div>
+      `;
+    }
+
+    (async()=>{
+      try{
+        if(!id){
+          document.getElementById('detailsCard').innerHTML = '<div class="details-body"><div class="muted">Missing qualification id.</div></div>';
+          return;
+        }
+
+        document.getElementById('detailsCard').innerHTML = '<div class="details-body"><div class="muted">Loading details…</div></div>';
+
+        const data = await fetchJSON(`api/get.php?type=${encodeURIComponent(type)}&id=${encodeURIComponent(id)}`);
+        const item = data.item;
+        if(!item){
+          document.getElementById('detailsCard').innerHTML = '<div class="details-body"><div class="muted">Qualification not found.</div></div>';
+          return;
+        }
+
+        let meta = {};
+        try{ meta = JSON.parse(item.content || '{}'); }catch(e){ meta = {}; }
+
+        const title = item.title || '';
+        const programDesc = meta.program_description || meta.description || '';
+
+        const duration = meta.training_duration || '';
+        const requirements = meta.requirements || '';
+        const learningOutcomes = meta.learning_outcomes || meta.outcomes || '';
+        const certificateInfo = meta.certificate_information || meta.certificate || '';
+
+        // Dedicated “Program Title / Program Description …” mapping
+        const blockTitle = meta.program_title || title;
+        const blockDesc = programDesc;
+
+        document.getElementById('detailsCard').innerHTML = `
+          <div class="details-body">
+            <h1 class="details-title">${escapeHtml(blockTitle)}</h1>
+            <div class="details-meta">
+              <span>${escapeHtml(kindLabelFromType(item.type || type))}</span>
+              ${item.created_at ? `<span>${escapeHtml(new Date(item.created_at).toLocaleDateString())}</span>` : ''}
+            </div>
+
+            <div class="section-block">
+              <h3>Program Description</h3>
+              <div class="box">${escapeHtml(blockDesc || '—')}</div>
+            </div>
+
+            <div class="grid3">
+              ${kv('Training Duration', duration || '—')}
+              ${kv('Requirements', requirements || '—')}
+              ${kv('Learning Outcomes', learningOutcomes || '—')}
+              ${kv('Certificate Information', certificateInfo || '—')}
+            </div>
+          </div>
+        `;
+      }catch(e){
+        console.error(e);
+        document.getElementById('detailsCard').innerHTML = '<div class="details-body"><div class="muted">Failed to load qualification details.</div></div>';
+      }
+    })();
+  </script>
+</body>
+</html>
+
