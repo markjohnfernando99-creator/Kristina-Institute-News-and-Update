@@ -1,276 +1,374 @@
 <?php
-session_start();
+header('Content-Type: application/json; charset=utf-8');
 
-require __DIR__ . '/config/db.php';
+require __DIR__ . '/../config/db.php';
 
-// If not logged in, allow viewing but require login to save history.
-$userId = $_SESSION['user_id'] ?? '';
+$raw = file_get_contents('php://input');
+$payload = json_decode($raw, true);
+if (!is_array($payload)) {
+  http_response_code(400);
+  echo json_encode(['ok' => false, 'error' => 'Invalid JSON payload']);
+  exit;
+}
 
-function h($s){ return htmlspecialchars($s ?? '', ENT_QUOTES, 'UTF-8'); }
+$userText = trim((string)($payload['message'] ?? ''));
+$language = strtolower(trim((string)($payload['language'] ?? 'en')));
+$sessionId = (string)($payload['session_id'] ?? '');
 
-?>
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Kristina AI Chat</title>
-  <link rel="stylesheet" href="assets/style.css" />
-  <style>
-    .chat-wrap{max-width:980px; margin:0 auto; padding:18px 16px 30px;}
-    .chat-shell{display:grid; grid-template-columns:320px 1fr; gap:16px; align-items:start;}
-    @media(max-width:880px){.chat-shell{grid-template-columns:1fr;}}
+if ($userText === '') {
+  http_response_code(200);
+  echo json_encode(['ok' => false, 'answer' => 'Please type a message.', 'language' => $language]);
+  exit;
+}
 
-    .panel{background:rgba(255,255,255,.03); border:1px solid var(--border); border-radius:18px; box-shadow:var(--shadow); padding:16px;}
-    .side-title{margin:0 0 10px; font-size:18px;}
-    .muted{color:var(--muted);}
-
-    .theme-row{display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; margin-top:10px;}
-
-    .chat-topbar{display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:12px;}
-
-    #messages{height:65vh; min-height:420px; overflow:auto; padding:12px; display:flex; flex-direction:column; gap:10px;}
-    @media(max-width:880px){#messages{height:60vh;}}
-
-    .msg{max-width:92%; padding:11px 12px; border-radius:14px; border:1px solid rgba(255,255,255,.08); white-space:pre-wrap; line-height:1.4;}
-    .msg.user{align-self:flex-end; background:rgba(43,212,197,.12); border-color:rgba(43,212,197,.30);}
-    .msg.ai{align-self:flex-start; background:rgba(79,140,255,.12); border-color:rgba(79,140,255,.30);}
-
-    .typing{display:inline-flex; gap:4px; align-items:center;}
-    .dot{width:6px; height:6px; border-radius:50%; background:rgba(233,239,255,.8); animation: tDots 1.2s infinite ease-in-out;}
-    .dot:nth-child(2){animation-delay:.15s}
-    .dot:nth-child(3){animation-delay:.30s}
-    @keyframes tDots{0%,100%{transform:translateY(0); opacity:.35} 50%{transform:translateY(-4px); opacity:1}}
-
-    #composer{display:flex; gap:10px; align-items:flex-end; margin-top:12px;}
-    #composer textarea{flex:1; min-height:48px; max-height:140px; resize:none; padding:12px 12px; border-radius:14px; border:1px solid var(--border); background:rgba(0,0,0,.2); color:var(--text); outline:none;}
-    .btn{display:inline-flex; align-items:center; justify-content:center; padding:11px 14px; border-radius:12px; color:#0b1220; text-decoration:none; font-weight:750; background:linear-gradient(135deg,var(--primary),var(--primary2)); border:0; cursor:pointer;}
-
-    .btn-ghost{background:transparent; color:var(--text); border:1px solid var(--border);}
-
-    .row{display:flex; gap:10px; align-items:center; justify-content:space-between; flex-wrap:wrap;}
-
-    .link{color:var(--primary); text-decoration:none; font-weight:800}
-
-    /* ChatGPT-like scroll anchoring */
-    .spacer{height:1px;}
-  </style>
-</head>
-<body class="has-bg-image">
-
-<header class="site-header">
-  <div class="container header-inner">
-    <div class="brand">
-      <div class="brand-mark" aria-hidden="true"><img class="brand-logo" src="assets/KIHCA LOGO MALIWANAG.png" alt="Kristina" /></div>
-      <div>
-        <div class="brand-title">Kristina Institute</div>
-        <div class="brand-subtitle">ChatGPT-style AI</div>
-      </div>
-    </div>
-    <nav class="nav">
-      <a href="index.html" class="nav-link">Home</a>
-      <?php if(!$userId): ?>
-        <a href="login.php" class="nav-link nav-link-primary">Login</a>
-      <?php else: ?>
-        <a href="history.php" class="nav-link">History</a>
-        <a href="logout.php" class="nav-link">Logout</a>
-      <?php endif; ?>
-    </nav>
-  </div>
-</header>
-
-<div class="chat-wrap">
-  <div class="chat-shell">
-
-    <aside class="panel">
-      <h3 class="side-title">Account</h3>
-      <?php if(!$userId): ?>
-        <div class="muted" style="font-size:14px; line-height:1.5;">
-          Login to save chat history.
-        </div>
-        <div style="margin-top:12px; display:flex; gap:10px;">
-          <a class="btn" href="login.php">Login</a>
-          <a class="btn btn-ghost" href="register.php">Register</a>
-        </div>
-      <?php else: ?>
-        <div class="muted" style="font-size:14px; line-height:1.5;">
-          Signed in. Your chats will be saved.
-        </div>
-        <div style="margin-top:12px; display:flex; gap:10px;">
-          <a class="btn" href="history.php">Chat History</a>
-        </div>
-      <?php endif; ?>
-
-      <div class="theme-row">
-        <div>
-          <div style="font-weight:900; font-size:13px;">Dark mode</div>
-          <div class="muted" style="font-size:12.5px; margin-top:2px;">Uses your existing site theme.</div>
-        </div>
-        <button id="toggleTheme" class="btn btn-ghost" type="button">Toggle</button>
-      </div>
-
-      <hr style="border:0; border-top:1px solid var(--border); margin:14px 0;" />
-      <div class="muted" style="font-size:13.5px; line-height:1.5;">
-        Tip: Ask any topic. This uses OpenAI when configured.
-      </div>
-
-      <div style="margin-top:12px;" class="muted" id="connStatus"></div>
-
-    </aside>
-
-    <main class="panel">
-      <div class="chat-topbar">
-        <div>
-          <div style="font-weight:950; font-size:18px;">Chat</div>
-          <div class="muted" style="font-size:13.5px; margin-top:2px;">AI typing animation + saved history</div>
-        </div>
-        <div style="display:flex; gap:10px; flex-wrap:wrap;">
-          <button id="newChat" class="btn btn-ghost" type="button">New chat</button>
-          <button id="clearChat" class="btn btn-ghost" type="button">Clear</button>
-        </div>
-      </div>
-
-      <div id="messages"></div>
-      <div class="spacer" id="bottom"></div>
-
-      <form id="composer" autocomplete="off">
-        <textarea id="prompt" placeholder="Type your message..." maxlength="4000"></textarea>
-        <button class="btn" id="sendBtn" type="submit">Send</button>
-      </form>
-
-    </main>
-
-  </div>
-</div>
-
-<script>
-  const USER_ID = <?php echo $userId ? json_encode($userId) : 'null'; ?>;
-</script>
-<script>
-  const messagesEl = document.getElementById('messages');
-  const promptEl = document.getElementById('prompt');
-  const bottomEl = document.getElementById('bottom');
-  const connStatus = document.getElementById('connStatus');
-
-  let conversationId = null;
-  let isTyping = false;
-
-  function escapeHtml(s){
-    return (s ?? '').toString()
-      .replaceAll('&','&amp;')
-      .replaceAll('<','<')
-      .replaceAll('>','>');
+// Safety: basic filtering (no external AI provider yet)
+$blocked = [
+  'password', 'credit card', 'ssn', 'social security',
+];
+$lower = mb_strtolower($userText);
+foreach ($blocked as $b) {
+  if (mb_strpos($lower, $b) !== false) {
+    echo json_encode([
+      'ok' => true,
+      'language' => $language,
+      'answer' => "I can’t help with that request. If you need assistance, tell me what you’re trying to accomplish (e.g., admissions, TESDA programs, schedules, requirements)."
+    ]);
+    exit;
   }
+}
 
-  function addMsg(role, text){
-    const div = document.createElement('div');
-    div.className = 'msg ' + (role === 'user' ? 'user' : 'ai');
-    div.innerHTML = escapeHtml(text);
-    messagesEl.appendChild(div);
-    messagesEl.scrollTop = messagesEl.scrollHeight;
-  }
+// Simple language handling
+$fil = in_array($language, ['fil','filipino','tl','tagalog','tl-ph'], true);
 
-  function addTyping(){
-    const div = document.createElement('div');
-    div.className = 'msg ai typing';
-    div.id = 'typing-indicator';
-    div.innerHTML = '<span class="typing"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="muted" style="margin-left:8px; font-size:13px;">Thinking…</span></span>';
-    messagesEl.appendChild(div);
-    messagesEl.scrollTop = messagesEl.scrollHeight;
-  }
+function normalize($s){
+  $s = trim((string)$s);
+  $s = preg_replace('/\s+/u', ' ', $s);
+  return $s;
+}
 
-  function removeTyping(){
-    const t = document.getElementById('typing-indicator');
-    if(t) t.remove();
-  }
+function classify($t){
+  $t = mb_strtolower($t);
 
-  async function api(path, body){
-    const res = await fetch(path, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
-    const data = await res.json().catch(()=> ({}));
-    if(!res.ok || !data.ok){
-      const msg = data.error || 'Request failed';
-      throw new Error(msg);
-    }
-    return data;
-  }
+  $rules = [
+    // greetings
+    ['greeting', ['hello','hi','hey','good morning','good afternoon','good evening','kumusta','magandang araw','good day','kamusta']],
 
-  async function ensureConversation(){
-    // Create a new conversation session for the logged user (if possible)
-    if(conversationId) return conversationId;
-    if(!USER_ID){
-      // Anonymous: create a temporary ID for frontend only.
-      conversationId = 'anon_' + Math.random().toString(16).slice(2);
-      return conversationId;
-    }
+    // admissions / enrollment / application intent
+    ['admissions', [
+      'admission','admissions','enroll','enrollment','enrol','apply','application','register','registration',
+      'requirements','requirement','eligibility','intake','open enrollment','open registration','how to apply','apply now',
+      'mag-enroll','mag enroll','enrollment requirements','admission requirements','admissions requirements',
+      'tuition','fee','fees','tuition fee','scholar','scholarship'
+    ]],
 
-    const res = await api('api/session_create.php', {user_id: USER_ID});
-    conversationId = res.conversation_id;
-    return conversationId;
-  }
+    // supporting documents / forms
+    ['documents', [
+      'documents','requirements','required documents','requirements list','form','forms','submission','submit','requirements checklist',
+      'birth certificate','bc','good moral','good moral certificate','gmc','barangay certificate','id','valid id',
+      '2x2','2x2 picture','2x2 photo','pictures','tor','tor copy','report card','transfer credential','good moral certificate',
+      'registration form','application form'
+    ]],
 
-  async function loadHistory(){
-    if(!USER_ID) return;
-    if(!conversationId) return;
-    const res = await api('api/messages_list.php', {conversation_id: conversationId});
-    messagesEl.innerHTML = '';
-    for(const m of res.messages){
-      addMsg(m.role, m.content);
+    // assessment / certification
+    ['assessment', [
+      'assessment','assess','interview','exam','examination','testing','test','screening','schedule of assessment',
+      'nc ii assessment','competency assessment','certification','certify','certificate','rating','evaluation',
+      'tesda assessment'
+    ]],
+
+    // program/course
+    ['programs', ['course','program','programs','degree','diploma','certificate','short course','hospitality','culinary','chef','cooking','art','artsm','hospitality arts','culinary arts']],
+
+    // TESDA programs
+    ['tesda', ['tesda','nc ii','ncii','food processing','food processing nc','cookery','housekeeping']],
+
+    // schedule/timings
+    ['schedule', ['schedule','timing','timings','hours','class','classes','open','opening','start','starts','time','day','days','when','what time','morning','afternoon','evening']],
+
+    // contact & location
+    ['contact', ['contact','phone','email','facebook','instagram','messenger','address','reach us','contact us','hotline']],
+    ['location', ['where','location','near','vicinity','landmark','address','directions','how to get there','map']],
+
+    // history/people
+    ['history', ['history','krisitina institute','kristina institute','2020','2021','2024','2025','gourmet bangus','foundation','presiados','gerald c','geralc','gerald c. presiados','tarlac','victoria']],
+  ];
+
+  foreach ($rules as $rule) {
+    $label = $rule[0];
+    $keys = $rule[1];
+    foreach ($keys as $k) {
+      if ($k !== '' && mb_strpos($t, $k) !== false) return $label;
     }
   }
 
-  async function send(text){
-    const t = (text || '').trim();
-    if(!t) return;
+  return 'general';
+}
 
-    addMsg('user', t);
-    promptEl.value = '';
 
-    isTyping = true;
-    addTyping();
-
-    try{
-      const cid = await ensureConversation();
-      const res = await api('api/messages_send.php', {
-        conversation_id: cid,
-        message: t,
-        language: 'en'
-      });
-      removeTyping();
-      isTyping = false;
-      addMsg('assistant', res.answer);
-      messagesEl.scrollTop = messagesEl.scrollHeight;
-    }catch(err){
-      removeTyping();
-      isTyping = false;
-      addMsg('assistant', 'Error: ' + (err.message || err));
-    }
+function answerFixed($topic, $fil){
+  if ($topic === 'greeting') {
+    return $fil
+      ? "Hi! 👋 Ako si Kristina Bot. Maaari mo akong tanungin tungkol sa Kristina Institute—admissions/enrollment, programs (Hospitality/Culinary + TESDA NC II), schedules/timings, contact at maging history. Ano ang gusto mong malaman?"
+      : "Hi! 👋 I’m Kristina Bot. Ask me anything about Kristina Institute—admissions/enrollment, programs (Hospitality/Culinary + TESDA NC II), schedules/timings, contact info, and even our history. What would you like to know?";
   }
 
-  document.getElementById('composer').addEventListener('submit', (e)=>{
-    e.preventDefault();
-    if(isTyping) return;
-    send(promptEl.value);
-  });
+  if ($topic === 'admissions') {
+    return $fil
+      ? "Para sa admissions/enrollment, karaniwang naka-post ang detalye sa pinakabagong **News/Updates** sa homepage.
 
-  document.getElementById('newChat').addEventListener('click', async ()=>{
-    conversationId = null;
-    messagesEl.innerHTML = '';
-    addMsg('assistant', 'New chat started. How can I help you today?');
-  });
+**Gabay (step-by-step):**
+1) Sabihin mo ang target mo: **Hospitality** o **Culinary** (o TESDA NC II kung TESDA ang hanap).
+2) Sabihin mo ang intake/timeframe (hal. buwan at kung **morning/afternoon**).
+3) I-check ang announcement para sa: **requirements**, **schedule**, at **contact details**.
 
-  document.getElementById('clearChat').addEventListener('click', ()=>{
-    messagesEl.innerHTML = '';
-  });
+Kapag sinabi mo ang program + target intake, gagabayan kita kung anong keywords ang hahanapin sa post." 
+      : "Admissions & enrollment details are usually posted in the latest **News/Updates** on the homepage.
 
-  document.getElementById('toggleTheme').addEventListener('click', ()=>{
-    document.body.classList.toggle('light-theme');
-    // We keep it simple: existing CSS is dark-first.
-  });
+**How we’ll do it (step-by-step):**
+1) Tell me your target: **Hospitality** or **Culinary** (or **TESDA NC II** if that’s what you need).
+2) Tell me your intake timeframe (e.g., month) and preferred **morning/afternoon** if applicable.
+3) Check the announcement for: **requirements**, **schedule**, and **contact details**.
 
-  addMsg('assistant', 'Hello! I’m Kristina AI. What would you like to ask?');
-  
-  connStatus.textContent = 'OpenAI chat endpoint ready (configure API key in config/openai.php).';
-</script>
-</body>
-</html>
+Once you share your program + intake, I’ll guide you on what to look for in the post.";
+  }
+
+  if ($topic === 'documents') {
+    return $fil
+      ? "Kapag requirements/documents ang hanap mo, i-check ang announcement na may pamagat na may keywords tulad ng **Requirements**, **Documentary Requirements**, **What to Submit**, o **Enrollment Checklist**.
+
+Para masakto: sagutin mo ito:
+1) Program: **Hospitality / Culinary / TESDA NC II**?
+2) Intake: anong month/period?
+3) May specifics ka ba (e.g., **Good Moral**, **Form**, **2x2 pictures**)?" 
+      : "If you’re looking for requirements/documents, check the announcement that includes keywords like **Requirements**, **Documentary Requirements**, **What to Submit**, or **Enrollment Checklist**.
+
+To be specific:
+1) Program: **Hospitality / Culinary / TESDA NC II**?
+2) Intake: which month/period?
+3) Any specific documents you already know you need (e.g., Good Moral, forms)?";
+  }
+
+  if ($topic === 'assessment') {
+    return $fil
+      ? "Para sa **assessment/certification**, hanapin sa **News/Updates** ang mga post na may salitang tulad ng **Assessment**, **Schedule of Assessment**, **TESDA Assessment**, o **Certification**.
+
+Sabihin mo:
+1) Anong **TESDA NC II** (Food Processing / Cookery / Housekeeping)?
+2) Timeframe (hal. this week / next month)?
+3) Kung may exam/interview details ba sa post?" 
+      : "For **assessment/certification**, check the **News/Updates** posts that mention **Assessment**, **Schedule of Assessment**, **TESDA Assessment**, or **Certification**.
+
+Tell me:
+1) Which **TESDA NC II** (Food Processing / Cookery / Housekeeping)?
+2) Timeframe (this week / next month)?
+3) If the post includes exam/interview details?";
+  }
+
+  if ($topic === 'programs') {
+    return $fil
+      ? "Dalawang pangunahing focus natin:
+
+• **Hospitality Arts** — training para sa hospitality services at operations.
+• **Culinary Arts** — training para sa pagluluto at culinary skills.
+
+Para maitama ang next steps:
+1) Alin ang gusto mo (**Hospitality** o **Culinary**)?
+2) Basics ba, advanced, o may specific na goal?"
+      : "We focus on two main areas:
+
+• **Hospitality Arts** — training related to hospitality services and operations.
+• **Culinary Arts** — training related to cooking/culinary skills.
+
+To guide you better:
+1) Which one do you prefer (**Hospitality** or **Culinary**)?
+2) Basics, advanced, or a specific goal?";
+  }
+
+  if ($topic === 'tesda') {
+    return $fil
+      ? "Mga TESDA Programs (NC II) sa Kristina Institute:
+
+1) **Food Processing NC II** — tamang paghahanda, processing, safety at hygiene.
+2) **Cookery NC II** — practical cooking skills at kitchen safety.
+3) **Housekeeping NC II** — sanitation, housekeeping tasks, at room preparation.
+
+Sabihin mo kung alin ang gusto mo (Food Processing / Cookery / Housekeeping) at i-match ko sa latest **intake schedule**, **requirements**, at **next steps**." 
+      : "TESDA Programs (NC II) available at Kristina Institute:
+
+1) **Food Processing NC II**
+   • Learn proper food preparation, processing, safety and hygiene.
+
+2) **Cookery NC II**
+   • Develop practical cooking skills and kitchen safety.
+
+3) **Housekeeping NC II**
+   • Train for cleaning/sanitation and room preparation tasks.
+
+Tell me which NC II you want and I’ll help you find the latest **intake schedule**, **requirements**, and **next steps**.";
+  }
+
+
+  if ($topic === 'schedule') {
+    return $fil
+      ? "Para sa **latest schedule/timings**, i-check ang **News** at **Updates** sa homepage.
+
+Tip: Kapag sinabi mo kung anong **day/time** (hal. “morning classes” o “afternoon sessions”), tutulungan kitang hanapin kung ano ang keywords na dapat i-check sa announcement." 
+      : "For the latest **schedule/timings**, check the **News** and **Updates** sections on the homepage.
+
+Tip: Tell me the **day/time** you mean (e.g., “morning classes” or “afternoon sessions”) and I’ll point you to the keywords in the posted announcement.";
+  }
+
+
+  if ($topic === 'contact') {
+    return $fil
+      ? "Karaniwang naka-post ang contact information sa pinakabagong **News/Updates**.
+
+Sabihin mo kung anong kailangan mo (hal. **email for admissions**, **phone number**, o **FB page**) para mas madali nating mahanap sa post." 
+      : "Contact information is typically posted in the latest **News/Updates**.
+
+Tell me what you need (admissions email, phone number, FB page, etc.) and I’ll help you locate it in the latest announcement.";
+  }
+
+  if ($topic === 'location') {
+    return $fil
+      ? "Para sa **address/location** announcements, i-check ang **News** section sa homepage.
+
+Kung sasabihin mo ang landmark/area (hal. near anong lugar), tutulungan kitang i-narrow down kung ano ang dapat hanapin sa post." 
+      : "For **address/location** announcements, check the **News** section on the homepage.
+
+If you share a landmark/area you’re looking near, I can help you narrow down what to look for in the posted content.";
+  }
+
+  if ($topic === 'history') {
+    return $fil
+      ? "**KRISTINA INSTITUTE (SHORT HISTORY)**
+
+2020 — Foundation Year
+Sinimulan ang Kristina Institute noong 2020, inilunsad ang Gourmet Bangus at naging kilala bilang quality food processor.
+
+2021 — TESDA Assessment Center
+Na-open bilang TESDA-accredited assessment center at nakapagtala ng mahigit 500 kandidato sa Food Processing.
+
+May 2024 — UTPRAS Registration
+Na-secure ang UTPRAS registration para sa Food Processing NC II Training.
+
+October 2024 — SHS Registration
+Opisyal na nakapag-register bilang Senior High School (Hospitality, Culinary Arts, at Food Processing tracks).
+
+May 2025 — National Recognition
+Pinangalanang pilot implementer ng Strengthened Senior High School Curriculum sa Tarlac Province."
+      : "**KRISTINA INSTITUTE (SHORT HISTORY)**
+
+2020 - Foundation Year
+Kristina Institute traces its humble beginnings to 2020, launching with Gourmet Bangus and establishing itself as a quality food processor.
+
+2021 - TESDA Assessment Center
+Opened as a TESDA-accredited Assessment Center, certifying over 500 candidates in Food Processing from multiple regions.
+
+May 2024 - UTPRAS Registration
+Secured UTPRAS registration for Food Processing NC II Training.
+
+October 2024 - SHS Registration
+Officially registered as a Senior High School with specialized tracks in Hospitality, Culinary Arts, and Food Processing.
+
+May 2025 - National Recognition
+Named pilot implementer of the Strengthened Senior High School Curriculum in Tarlac Province.";
+  }
+
+  return null;
+}
+
+
+$topic = classify($userText);
+$fixed = answerFixed($topic, $fil);
+if ($fixed !== null) {
+  echo json_encode(['ok' => true, 'language' => $language, 'answer' => $fixed]);
+  exit;
+}
+
+// Retrieval (grounded) using posts table
+$q = normalize($userText);
+
+// Keep the query bounded to avoid extremely broad LIKEs
+if (mb_strlen($q) > 80) $q = mb_substr($q, 0, 80);
+
+// Try multiple matching signals (still grounded: from your posts only)
+$stmt = $pdo->prepare(
+  'SELECT id, type, title, content, author_name, created_at
+   FROM posts
+   WHERE (
+     title LIKE :like
+     OR content LIKE :like
+     OR author_name LIKE :like
+     OR type LIKE :like
+   )
+   ORDER BY created_at DESC
+   LIMIT 10'
+);
+
+$like = '%'.$q.'%';
+$stmt->execute([':like' => $like]);
+$items = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+
+function briefContent($content){
+  $content = trim((string)$content);
+  // remove excessive whitespace
+  $content = preg_replace('/\s+/u', ' ', $content);
+  if (mb_strlen($content) > 420) {
+    $content = mb_substr($content, 0, 420).'...';
+  }
+  return $content;
+}
+
+if (!$items) {
+  $unc = $fil
+    ? "Hindi ko makita sa mga naka-post na announcements ang eksaktong sagot sa ngayon. 
+
+Subukan mo:
+• i-type kung anong **program** (Hospitality/Culinary o TESDA NC II) 
+• anong **timeframe/intake** (hal. Sept/Oct, morning classes)
+
+Pwede rin mong i-check ang **News/Updates** para sa latest requirements."
+    : "I couldn’t find a matching answer in the currently posted announcements.
+
+Try:
+• specify the **program** (Hospitality/Culinary or TESDA NC II)
+• include **timeframe/intake** (e.g., Sept/Oct, morning classes)
+
+You can also check **News/Updates** for the latest requirements.";
+
+  echo json_encode(['ok' => true, 'language' => $language, 'answer' => $unc]);
+  exit;
+}
+
+// Build grounded response from top items
+$lines = [];
+if ($fil) {
+  $lines[] = "Batay sa mga naka-post na detalye, ito ang pinaka-malapit na impormasyon:";
+} else {
+  $lines[] = "Based on the latest posted information, here are the closest matches:";
+}
+
+foreach ($items as $it) {
+  $type = $it['type'] ?? '';
+  $kind = $type === 'updates' ? 'Update' : ($type === 'advertisement' ? 'Advertisement' : ($type === 'news' ? 'News' : strtoupper($type)));
+  $title = (string)($it['title'] ?? '');
+  $content = (string)($it['content'] ?? '');
+  $snippet = briefContent($content);
+
+  $lines[] = "• **{$kind}:** {$title}\n  — {$snippet}";
+}
+
+$follow = $fil
+  ? "
+
+Gusto mo ba na i-summarize ko ito para sa iyong situation (hal. **admissions requirements** o **TESDA NC II** na kailangan)? Sabihin mo lang ang program at target mo." 
+  : "
+
+Do you want me to summarize this for your specific situation (e.g., admissions requirements or the TESDA NC II you need)? Tell me your program and goal.";
+
+$answer = implode("\n", $lines).$follow;
+
+echo json_encode(['ok' => true, 'language' => $language, 'answer' => $answer]);
 

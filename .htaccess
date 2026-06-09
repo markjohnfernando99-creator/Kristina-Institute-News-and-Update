@@ -1,0 +1,9 @@
+Options -Indexes
+
+# Allow PHP files in this folder.
+# (Needed for admin form to load correctly.)
+<IfModule mod_php.c>
+  php_flag engine on
+</IfModule>
+
+
